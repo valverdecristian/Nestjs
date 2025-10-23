@@ -51,6 +51,8 @@ npm run start:dev
 // eslintPluginPrettierRecommended,
 ```
 
+<br>
+
 ## 📦 Métodos HTTP en NestJS
 
 Los métodos HTTP se usan dentro de los **controladores** para manejar las rutas:
@@ -118,6 +120,8 @@ export class UsuariosController {
 @Get('gatos/siames')
 @Get(['gatos', 'siames'])
 ```
+
+<br>
 
 ## 📌 Módulos
 
@@ -243,11 +247,15 @@ crear(@Body() dto: CrearDto) {
 }
 ```
 
+<br>
+
 ## 📌 Ciclo de vida en Nestjs
 
 El ciclo se divide en dos fases principales: Arranque (Bootstrap) y Apagado (Shutdown).
 
 1. Fase de Arranque (Initialization)
+
+<br>
 
 ## 📌 Conexion a la Base de Datos
 
@@ -350,6 +358,8 @@ export class UsuariosModule {}
   * Propiedades como _id, createdAt, updatedAt.
   * Tipado completo del documento que devuelve la base de datos.
 
+<br>
+
 ## 💥 Manejo de Errores y Excepciones.
 
 ### 📍 Filtros de Excepciones (Exception Filters)
@@ -379,6 +389,7 @@ export class HttpExeptionFilter implements ExceptionFilter {
 }
 
 ```
+
 ### 🎯 Aplicación del Filtro (@UseFilters())
 
 - Luego uso este filtro con el decorador `@UseFilters`.
@@ -413,3 +424,54 @@ async function bootstrap() {
   await app.listen(3000);
 }
 ```
+
+<br>
+
+## 🔑 Autenticación con JWT
+
+La autenticación con JWT es el estándar moderno para gestionar sesiones en APIs sin estado (stateless). Se usa para verificar la identidad del usuario en cada solicitud sin necesidad de consultar una base de datos para cada request.
+
+### 📍 ¿Qué es JWT?
+
+JWT (JSON Web Tokens) es una llave de acceso segura y compacta que el servidor genera tras verificar las credenciales del usuario. El backend (que es stateless, es decir, que no recuerda sesiones) le delega al token la responsabilidad de portar la información de la sesión.
+
+### 📍 Estructura del Token
+
+<p>Un JWT es un string codificado en Base64url que consta de tres partes separadas por puntos (.). Las dos primeras partes son visibles y descifrables; la tercera es la firma de seguridad. </p>
+
+<h4>Estructura: header.payload.signature</h4>
+
+- **header (cabecera)**: tipo de token (JWT) y el algoritmo de cifrado, define como verificar el token
+
+- **payload (cuerpo)**: contiene la informción del usuario (claims) y el tiempo de expiración, transporta los datos de la sesión que el backend necesita.
+
+- **signature (firma)**: creada cifrando el header y el payload con una clave secreta que SOLO el servidor conoce.
+
+### 📍 Flujo de Autenticación
+
+<p>El proceso asegura que el <strong>Frontend</strong> recuerde la sesión sin guardar la contraseña, usando el token como credencial temporal.</p>
+
+<ol>
+  <li>Login: El cliente envía credenciales a la ruta /auth/login.</li>
+  <li>Generación: El servidor valida el usuario, crea el JWT (firmado con la Clave Secreta), y lo devuelve al cliente.</li>
+  <li>Persistencia (Frontend): El Frontend guarda el JWT (en localStorage o cookies).</li>
+  <li>Acceso a Recursos: Para cada solicitud a rutas protegidas (/productos, /usuarios), el Frontend adjunta el JWT en el Header Authorization: Bearer &lt;token&gt;.</li>
+</ol>
+
+<br>
+
+### 📍 Implementación
+
+La implementación se enfoca en tres pasos clave: usar una librería para las operaciones fundamentales de JWT, inyectar esa lógica en un servicio (o proveedor) y proteger las rutas con Guards.
+
+1. **Instalación**: usamos la libreria base de Node.js
+
+```bash
+npm install jsonwebtoken
+```
+
+Función: Este paquete (jsonwebtoken) es la herramienta esencial que usaremos en un Servicio para las tareas de firmado (sign()) y verificación (verify()) del token.
+
+2. **Generación**: La generación del token ocurre en el Servicio de Autenticación (AuthService) después de que las credenciales del usuario han sido validadas.
+
+3. **Protección**: La verificación del token y la protección de los endpoints se realiza mediante el módulo Passport y sus componentes en NestJS
