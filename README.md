@@ -324,7 +324,7 @@ export const UsuarioSchema = SchemaFactory.createForClass(Usuario);
 - **Esta parte es clave**: cada módulo que usa un modelo debe registrarlo con MongooseModule.forFeature(...)
 - Siguiendo el ejemplo se debe configurar en usuarios.module.ts:
 
-```ts
+```typescript
 import { Module } from '@nestjs/common';
 import { UsuariosService } from './usuarios.service';
 import { UsuariosController } from './usuarios.controller';
@@ -349,3 +349,67 @@ export class UsuariosModule {}
   * Métodos de Mongoose (save(), populate(), etc.).
   * Propiedades como _id, createdAt, updatedAt.
   * Tipado completo del documento que devuelve la base de datos.
+
+## 💥 Manejo de Errores y Excepciones.
+
+### 📍 Filtros de Excepciones (Exception Filters)
+
+- comando de creación: nest g f filters/httpExeption
+
+```typescript
+import { ArgumentsHost, Catch, ExceptionFilter, HttpException } from '@nestjs/common';
+import { Request, Response } from 'express';
+
+@Catch(HttpException)
+export class HttpExeptionFilter implements ExceptionFilter {
+  catch(exception: HttpException, host: ArgumentsHost) {
+    const ctx = host.switchToHttp();
+    const response: Response = ctx.getResponse<Response>();
+    const request = ctx.getRequest<Request>();
+    const status = exception.getStatus();
+
+    response
+      .status(status)
+      .json({
+        statusCode: status,
+        timestamp: new Date().toISOString(),
+        path: request.url,
+      });
+  }
+}
+
+```
+### 🎯 Aplicación del Filtro (@UseFilters())
+
+- Luego uso este filtro con el decorador `@UseFilters`.
+- La aplicación puede ser a tres niveles, siendo la global la más común para manejar errores uniformemente.
+
+1. A nivel metodo o clase
+```typescript
+// Aplicación a nivel de método
+@UseFilters(HttpExceptionFilter)
+@Get(':id')
+findOne(@Param('id') id: string) { /* ... */ }
+
+// Aplicación a nivel de controlador
+@Controller('usuarios')
+@UseFilters(HttpExceptionFilter)
+export class UsuariosController { /* ... */ }
+```
+
+2. A nivel global (recomendado): se registra el filtro en el main.ts
+
+```typescript
+// main.ts
+
+import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+  
+  // 🚀 REGISTRO GLOBAL
+  app.useGlobalFilters(new HttpExceptionFilter()); 
+  
+  await app.listen(3000);
+}
+```
