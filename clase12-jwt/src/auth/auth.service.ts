@@ -1,7 +1,6 @@
-import { BadRequestException, ConsoleLogger, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, InternalServerErrorException } from '@nestjs/common';
 import { CredencialesDto } from './dto/credencialesDto';
-import { sign, verify } from 'jsonwebtoken';
-import { log } from 'console';
+import { JsonWebTokenError, sign, TokenExpiredError, verify } from 'jsonwebtoken';
 
 const JWT_SECRET="Esta en un env"
 
@@ -27,6 +26,7 @@ export class AuthService {
         return {token: token};
     }
 
+    // la informacion del usuario va a salir del verify
     verificar(authHeader: string){
         console.log(authHeader);
         if(!authHeader) throw new BadRequestException();
@@ -35,8 +35,36 @@ export class AuthService {
 
         if(tipo !== 'Bearer') throw new BadRequestException();
 
-        const tokenValidado = verify(token, JWT_SECRET);
-        
-        return tokenValidado;
+        return this._validarToken(token);
+    }
+
+    // Guarda en cookies el token, lee de cookies el token
+    guardarTokenEnCookies(username: string) {
+        return this.createToken(username).token;
+    }
+
+    loginCookie(usuario: CredencialesDto) {
+        return this.guardarTokenEnCookies(usuario.usuario);
+    }
+
+    verificarDesdeCookie(token: string){
+        if (!token) throw new BadRequestException('Token de cookie no provisto.');
+        return this._validarToken(token);
+    }
+
+    private _validarToken(token: string){
+        try {
+            const tokenValidado = verify(token, JWT_SECRET);
+            return tokenValidado;
+        }
+        catch (error) {
+            if (error instanceof TokenExpiredError) {
+                return "Token expirado";
+            }
+            if (error instanceof JsonWebTokenError) {
+                return "Token erroneo";
+            }
+            throw new InternalServerErrorException();
+        }
     }
 }

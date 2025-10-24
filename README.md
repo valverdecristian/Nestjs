@@ -2,7 +2,7 @@
 
 NestJS es un framework backend para `Node.js` que permite crear aplicaciones del lado del servidor con una arquitectura **modular, escalable y profesional**, inspirada en Angular.
 
-🚀 Ofrece estructura clara, inyección de dependencias, módulos reutilizables, servicios bien definidos y código limpio.
+Ofrece estructura clara, inyección de dependencias, módulos reutilizables, servicios bien definidos y código limpio.
 
 ### 🧩 Características
 
@@ -225,6 +225,8 @@ export class UsuariosController {
 ```
 
 ✅ Tip: Para que decoradores como @IsInt() y @Min() funcionen correctamente, activá transform: true en el ValidationPipe. Esto convierte automáticamente los tipos (por ejemplo, "42" → 42) antes de validar.
+
+<br>
 
 ### 🛡️ Pipes y Guards
 
@@ -515,3 +517,14 @@ getProfile(@Request() req) {
 ```
 
 <br>
+
+### 📍 Cookies
+
+[Documentacion](https://docs.nestjs.com/techniques/cookies)
+
+- Instalar el paquete requerido
+
+```bash
+npm i cookie-parser
+npm i -D @types/cookie-parser
+```
