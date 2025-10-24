@@ -1,70 +1,96 @@
-import { BadRequestException, Injectable, InternalServerErrorException } from '@nestjs/common';
+/* eslint-disable @typescript-eslint/no-unsafe-call */
+import {
+  BadRequestException,
+  Injectable,
+  InternalServerErrorException,
+} from '@nestjs/common';
+import {
+  JsonWebTokenError,
+  sign,
+  TokenExpiredError,
+  verify,
+} from 'jsonwebtoken';
 import { CredencialesDto } from './dto/credencialesDto';
-import { JsonWebTokenError, sign, TokenExpiredError, verify } from 'jsonwebtoken';
 
-const JWT_SECRET="Esta en un env"
+const CONTRASENA_SECRETA_DEL_SERVER =
+  'ESTO DEBERÍA ESTAR EN UN ENV Y SER MUY LARGA Y MUY SEGURA';
 
 @Injectable()
 export class AuthService {
-    login(usuario: CredencialesDto) {
-        return this.createToken(usuario.usuario);
-    }
+  login(user: CredencialesDto) {
+    // Lee de la base de datos y confirma usuario válido y comprara contraseñas encriptadas.
+    return this.createToken(user.usuario);
+  }
 
-    register(usuario: CredencialesDto) {
-        return this.createToken(usuario.usuario);
-    }
+  register(user: CredencialesDto) {
+    // Valida usuario no existe y guarda
+    return this.createToken(user.usuario);
+  }
 
-    createToken(username: string){
-        const token:string = sign(
-            {
-                usuario: username,
-                admin: false,
-            },
-            JWT_SECRET,
-            { expiresIn: '15m' },
-        );
-        return {token: token};
-    }
+  // Ejemplo devuelve en body, trae desde header
 
-    // la informacion del usuario va a salir del verify
-    verificar(authHeader: string){
-        console.log(authHeader);
-        if(!authHeader) throw new BadRequestException();
-        
-        const [tipo, token] = authHeader.split(' ');
+  createToken(username: string) {
+    const payload: { user: string; admin: boolean } = {
+      user: username,
+      admin: false,
+    };
 
-        if(tipo !== 'Bearer') throw new BadRequestException();
+    // Necesito crear un token, sign es el método
+    const token: string = sign(payload, CONTRASENA_SECRETA_DEL_SERVER, {
+      expiresIn: '15m',
+    });
 
-        return this._validarToken(token);
-    }
+    return { token: token };
+  }
 
-    // Guarda en cookies el token, lee de cookies el token
-    guardarTokenEnCookies(username: string) {
-        return this.createToken(username).token;
-    }
+  verificar(authHeader: string) {
+    console.log(authHeader); // Bearer token
+    if (!authHeader) throw new BadRequestException();
 
-    loginCookie(usuario: CredencialesDto) {
-        return this.guardarTokenEnCookies(usuario.usuario);
-    }
+    const [tipo, token] = authHeader.split(' ');
 
-    verificarDesdeCookie(token: string){
-        if (!token) throw new BadRequestException('Token de cookie no provisto.');
-        return this._validarToken(token);
-    }
+    if (tipo !== 'Bearer') throw new BadRequestException();
 
-    private _validarToken(token: string){
-        try {
-            const tokenValidado = verify(token, JWT_SECRET);
-            return tokenValidado;
+    this._validateToken(token);
+  }
+
+  loginCookie(user: CredencialesDto) {
+    return this.guardarEnCookie(user.usuario);
+  }
+
+  // Guarda en cookie, lee de cookie
+  guardarEnCookie(username: string) {
+    const payload: { user: string; admin: boolean } = {
+      user: username,
+      admin: false,
+    };
+
+    // Necesito crear un token, sign es el método
+    const token: string = sign(payload, CONTRASENA_SECRETA_DEL_SERVER, {
+      expiresIn: '15m',
+    });
+
+    return token;
+  }
+
+  verificarDesdeCookie(token: string) {
+    this._validateToken(token);
+  }
+
+  private _validateToken(token: string) {
+    try {
+        // La verificación lanzará el error si el token es inválido/expirado
+        const tokenValidado = verify(token, CONTRASENA_SECRETA_DEL_SERVER);
+        return tokenValidado;
+    } catch (error) {
+        // El servicio no lanza las HTTP, pero puede transformar el error de JWT
+        if (error instanceof TokenExpiredError) {
+            throw new Error("TOKEN_EXPIRADO"); // 👈 Usamos un código de error
         }
-        catch (error) {
-            if (error instanceof TokenExpiredError) {
-                return "Token expirado";
-            }
-            if (error instanceof JsonWebTokenError) {
-                return "Token erroneo";
-            }
-            throw new InternalServerErrorException();
+        if (error instanceof JsonWebTokenError) {
+            throw new Error("TOKEN_INVALIDO"); // 👈 Usamos un código de error
         }
+        throw new InternalServerErrorException();
     }
+}
 }
