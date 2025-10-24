@@ -429,7 +429,7 @@ async function bootstrap() {
 
 ## 🔑 Autenticación con JWT
 
-La autenticación con JWT es el estándar moderno para gestionar sesiones en APIs sin estado (stateless). Se usa para verificar la identidad del usuario en cada solicitud sin necesidad de consultar una base de datos para cada request.
+La autenticación con JWT es el estándar moderno para gestionar sesiones en APIs sin estado (stateless). Se usa para verificar la identidad del usuario en cada solicitud sin necesidad de consultar una base de datos.
 
 ### 📍 ¿Qué es JWT?
 
@@ -447,6 +447,8 @@ JWT (JSON Web Tokens) es una llave de acceso segura y compacta que el servidor g
 
 - **signature (firma)**: creada cifrando el header y el payload con una clave secreta que SOLO el servidor conoce.
 
+<br>
+
 ### 📍 Flujo de Autenticación
 
 <p>El proceso asegura que el <strong>Frontend</strong> recuerde la sesión sin guardar la contraseña, usando el token como credencial temporal.</p>
@@ -460,18 +462,56 @@ JWT (JSON Web Tokens) es una llave de acceso segura y compacta que el servidor g
 
 <br>
 
-### 📍 Implementación
+### 🛠️ Implementación
 
 La implementación se enfoca en tres pasos clave: usar una librería para las operaciones fundamentales de JWT, inyectar esa lógica en un servicio (o proveedor) y proteger las rutas con Guards.
 
-1. **Instalación**: usamos la libreria base de Node.js
+<br>
+
+1. **Instalación de la Libreria Core**: usamos la libreria base de Node.js
 
 ```bash
 npm install jsonwebtoken
+
+# tipado para typescript
+npm install -D @types/jsonwebtoken
 ```
 
 Función: Este paquete (jsonwebtoken) es la herramienta esencial que usaremos en un Servicio para las tareas de firmado (sign()) y verificación (verify()) del token.
 
-2. **Generación**: La generación del token ocurre en el Servicio de Autenticación (AuthService) después de que las credenciales del usuario han sido validadas.
+<br>
 
-3. **Protección**: La verificación del token y la protección de los endpoints se realiza mediante el módulo Passport y sus componentes en NestJS
+2. **Generación del Token**: La generación del token ocurre en el Servicio de Autenticación (`AuthService`) después de validar al usuario.
+  
+  -   Utilizamos la función sign() para crear el token, inyectando el Payload, la Clave Secreta (JWT_SECRET) y el Tiempo de Expiración (expiresIn).
+
+```typescript
+// Fragmento clave del servicio:
+createToken(username: string){
+    const token:string = sign(
+        {
+            usuario: username,
+            admin: false,
+        },
+        JWT_SECRET, // Clave Secreta
+        { expiresIn: '15m' }, // Tiempo de expiración
+    );
+    return {token: token};
+}
+```
+
+<br>
+
+3. **Protección de Rutas (Verificación con Guards)**: La verificación del token se realiza mediante Passport y un Guard de NestJS para interceptar las peticiones antes de que lleguen a los endpoints.
+
+```typescript
+// En el Controlador
+@UseGuards(AuthGuard('jwt')) // El Guard usa la Estrategia 'jwt'
+@Get('perfil')
+getProfile(@Request() req) {
+  // Si se llega aquí, el token es válido y la info. del usuario está en req.user
+  return req.user;
+}
+```
+
+<br>

@@ -1,4 +1,4 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Post, Get, Headers } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { CredencialesDto } from './dto/credencialesDto';
 
@@ -8,11 +8,17 @@ export class AuthController {
 
   @Post('login')
   login(@Body() body: CredencialesDto){
+    return this.authService.login(body);
 
   }
 
-  @Post('login')
+  @Post('register')
   register(@Body() body: CredencialesDto){
+    return this.authService.register(body);
+  }
 
+  @Get('data')
+  traer(@Headers('authorization') authHeader:string){
+    return this.authService.verificar(authHeader);
   }
 }
