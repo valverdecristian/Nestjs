@@ -96,28 +96,29 @@ export class UsuariosController {
 - `@Body()`: para recibir datos enviados en el cuerpo del request.
 - `@Query()`: para capturar parámetros tipo `?filtro=activo`.
 
-### 📍 Argumentos de Métodos HTTP
+### 📍 Rutas en Decoradores HTTP
 
-👉 Aplica a cualquier metodo http (@Get(), @Post(), @Put(), @Delete())
+Los decoradores HTTP (@Get(), @Post(), etc.) aceptan diferentes argumentos para definir rutas:
 
 ```ts
-// Default
+// Sin argumento: usa la ruta base del controlador
 @Get()
-```
+// Si el controlador es @Controller('gatos'), responde a: GET /gatos
 
-- Si el controlador es @Controller('gatos'), esta ruta responde a GET /gatos
-
-```ts
-// Con segmento dinamico
+// Con parámetro dinámico
 @Get(':id')
-```
+// Captura valores dinámicos. Ejemplo: GET /gatos/42
+// Accedés al valor con @Param('id')
 
-- Captura el valor de `id` desde la URL
-- Ejemplo: `GET /gatos/42` -> `@Param('id')` devuelve `"42"`
+// Con segmento estático
+@Get('activos')
+// Responde a: GET /gatos/activos
 
-```ts
-// Especificando una ruta
-@Get('gatos/siames')
+// Con múltiples segmentos
+@Get('raza/siames')
+// Responde a: GET /gatos/raza/siames
+
+// También se puede usar un array (menos común)
 @Get(['gatos', 'siames'])
 ```
 
@@ -140,9 +141,9 @@ Cada aplicacion tiene al menos un módulo raiz (`AppModule`), pero lo mejor es d
 export class MiModulo {}
 ```
 
-### 📍 DTO
+### 📍 DTO (Data Transfer Object)
 
-Un DTO (`Data Transfer Object`) es una clase que define la forma y estructura de los datos que se reciben o envian entre el cliente y el servidor.
+Un DTO es una clase que define la forma y estructura de los datos que se reciben o envian entre el cliente y el servidor.
 
 👉 Es como un contrato que dice: “si querés crear un usuario, estos son los campos que tenés que mandar, con estos tipos y validaciones”.
 
@@ -160,13 +161,48 @@ Un DTO (`Data Transfer Object`) es una clase que define la forma y estructura de
 - Para definir claramente qué espera tu API.
 - Para proteger tu backend de datos maliciosos o incompletos.
 
+#### 🧩 Ejemplo de DTO con Validaciones
+
+```ts
+// crear-usuario.dto.ts
+import { IsString, IsInt, Min, Max, IsEmail, MinLength } from 'class-validator';
+
+export class CreateUsuarioDto {
+  @IsString()
+  @MinLength(3, { message: 'El nombre debe tener al menos 3 caracteres' })
+  nombre: string;
+
+  @IsString()
+  @MinLength(3)
+  apellido: string;
+
+  @IsEmail({}, { message: 'Debe ser un email válido' })
+  email: string;
+
+  @IsInt({ message: 'La edad debe ser un número entero' })
+  @Min(18, { message: 'Debe ser mayor de edad' })
+  @Max(100)
+  edad: number;
+}
+```
+
+**Decoradores comunes de validación:**
+- `@IsString()`, `@IsInt()`, `@IsBoolean()`: validan tipos
+- `@IsEmail()`: valida formato de email
+- `@MinLength()`, `@MaxLength()`: validan longitud de strings
+- `@Min()`, `@Max()`: validan rangos numéricos
+- `@IsOptional()`: campo opcional
+- `@IsArray()`: valida que sea un array
+
+<br>
+
 ### 🛡️ Validación de Datos
 
 Para asegurar que los datos de entrada (payload) sean correctos, NestJS utiliza DTOs junto con ValidationPipe.
 
 Para que la validacion funcione con los decoradores de clase, se necesitan dos paquetes:
-- class-validator: para usar los decoradores de validación como @IsString(), @IsInt, etc.
-- class-transformer: para transformar el objeto JSON de la petición en una instancia de la clase DTO
+- `class-validator`: para usar los decoradores de validación como @IsString(), @IsInt, etc.
+- `class-transformer`: para transformar el objeto JSON de la petición en una instancia de la clase DTO
 
 ```bash
 npm i --save class-validator class-transformer
@@ -201,8 +237,10 @@ async function bootstrap() {
 bootstrap();
 ```
 
-- ✅ whitelist: true elimina silenciosamente cualquier campo que no esté definido en el DTO.
-- 🛑 Para que se lance un error ante campos no permitidos, agregá también forbidNonWhitelisted: true.
+**Opciones del ValidationPipe:**
+- ✅ `whitelist: true` elimina silenciosamente cualquier campo que no esté definido en el DTO.
+- 🛑 `forbidNonWhitelisted: true` lanza un error 400 ante campos no permitidos (más estricto).
+- 🔄 `transform: true` convierte automáticamente los tipos (ej: "42" → 42, "true" → true).
 
 #### Uso en el controlador
 
@@ -224,7 +262,7 @@ export class UsuariosController {
 }
 ```
 
-✅ Tip: Para que decoradores como @IsInt() y @Min() funcionen correctamente, activá transform: true en el ValidationPipe. Esto convierte automáticamente los tipos (por ejemplo, "42" → 42) antes de validar.
+✅ **Tip**: Para que decoradores como `@IsInt()` y `@Min()` funcionen correctamente, activá `transform: true` en el ValidationPipe. Esto convierte automáticamente los tipos antes de validar.
 
 <br>
 
@@ -236,26 +274,87 @@ export class UsuariosController {
 Se pueden aplicar a nivel de método, controlador o módulo.
 
 ```ts
+// Aplicación a nivel de método
 @UseGuards(AuthGuard)
-@Get()
+@Get('privado')
 obtenerPrivado() {
   return 'Solo usuarios autenticados';
 }
 
-@UsePipes(ValidationPipe)
-@Post()
-crear(@Body() dto: CrearDto) {
-  return servicio.crear(dto);
-}
+// Aplicación a nivel de controlador
+@Controller('usuarios')
+@UseGuards(AuthGuard)
+export class UsuariosController { /* ... */ }
+
+// Aplicación global (en main.ts)
+app.useGlobalPipes(new ValidationPipe());
+app.useGlobalGuards(new AuthGuard());
 ```
 
 <br>
 
 ## 📌 Ciclo de vida en Nestjs
 
-El ciclo se divide en dos fases principales: Arranque (Bootstrap) y Apagado (Shutdown).
+El ciclo de vida de una aplicación NestJS se divide en dos fases principales: **Arranque (Bootstrap)** y **Apagado (Shutdown)**.
 
-1. Fase de Arranque (Initialization)
+### 🔄 Fase de Arranque (Initialization)
+
+1. **Construcción del módulo raíz** → Se instancia `AppModule`
+2. **Resolución de dependencias** → Se registran todos los providers
+3. **Inicialización de módulos** → Se ejecutan en orden jerárquico
+4. **Creación de la instancia de la aplicación** → `NestFactory.create()`
+5. **Configuración de middleware global** → pipes, guards, filters, interceptors
+6. **Inicio del servidor HTTP** → `app.listen()`
+
+### 🛑 Fase de Apagado (Shutdown)
+
+NestJS permite cerrar la aplicación de forma ordenada usando lifecycle hooks:
+
+```ts
+import { Injectable, OnModuleInit, OnModuleDestroy, OnApplicationBootstrap, BeforeApplicationShutdown, OnApplicationShutdown } from '@nestjs/common';
+
+@Injectable()
+export class MiServicio implements OnModuleInit, OnModuleDestroy {
+  onModuleInit() {
+    console.log('✅ Módulo inicializado');
+    // Inicializar conexiones a BD, cache, etc.
+  }
+
+  onApplicationBootstrap() {
+    console.log('🚀 Aplicación lista para recibir peticiones');
+  }
+
+  onModuleDestroy() {
+    console.log('🛑 Módulo destruido - limpiando recursos');
+    // Cerrar conexiones, liberar recursos
+  }
+
+  beforeApplicationShutdown(signal?: string) {
+    console.log(`⚠️ Señal recibida: ${signal}`);
+  }
+
+  onApplicationShutdown(signal?: string) {
+    console.log('🔴 Aplicación apagándose');
+  }
+}
+```
+
+**Hooks disponibles (en orden de ejecución):**
+
+**Durante el arranque:**
+- `onModuleInit()`: después de que el módulo se inicializa
+- `onApplicationBootstrap()`: cuando la app está completamente lista
+
+**Durante el apagado:**
+- `beforeApplicationShutdown()`: antes del cierre completo
+- `onModuleDestroy()`: antes de destruir el módulo
+- `onApplicationShutdown()`: durante el cierre final
+
+Para habilitar el apagado ordenado, usar:
+```ts
+// main.ts
+app.enableShutdownHooks();
+```
 
 <br>
 
@@ -281,12 +380,13 @@ npm i @nestjs/config
 - `isGlobal: true`: permite que el modulo de configuración (`ConfigModule`) este disponible **automáticamente en todos los módulos** del proyecto, **sin necesidad de importarlo nuevamente** cada vez que querés usar `process.env` o `ConfigService`
 
 ```ts
+// app.module.ts
 import { MongooseModule } from "@nestjs/mongoose";
 import { ConfigModule } from "@nestjs/config";
 
 @Module({
   imports: [
-    // actualizacion: se agrego { isGlobal: true }
+    // isGlobal: true permite usar ConfigService en todos los módulos sin importarlo
     ConfigModule.forRoot({ isGlobal: true }),
     MongooseModule.forRoot(process.env.MONGO_URI!),
   ],
@@ -298,36 +398,57 @@ export class AppModule {}
 
 ### 📍 Definicion de Esquemas
 
-- Nest usa decoradores para definir los **esquemas de MongoDB** de forma declarativa y tipada.
-- PRINCIPALES DECORADORES:
-1. `@Schema()`: marca la clase como esquema de MongoDB.
-2. `@Prop()`: define cada propiedad y sus opciones (type, required, default, enum, etc).
-- 👉 Hay mas formas de crear un esquema.
+Nest usa decoradores para definir los **esquemas de MongoDB** de forma declarativa y tipada.
+
+**Decoradores principales:**
+- `@Schema()`: marca la clase como esquema de MongoDB
+- `@Prop()`: define propiedades con opciones (type, required, default, unique, enum, etc)
 
 ```ts
 // usuario.entity.ts
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { HydratedDocument } from 'mongoose';
 
-export type UsuarioDocument = HydratedDocument<Usuario>; // se usa en nuestros servicios
+// Tipo que representa un documento completo de MongoDB con métodos de Mongoose
+export type UsuarioDocument = HydratedDocument<Usuario>;
 
-@Schema()
+@Schema({ timestamps: true }) // Agrega createdAt y updatedAt automáticamente
 export class Usuario {
-  @Prop({ required: true })
+  @Prop({ required: true, trim: true })
   nombre: string;
 
   @Prop({ required: true })
   apellido: string;
 
-  @Prop({ required: true })
+  @Prop({ required: true, min: 18, max: 100 })
   edad: number;
+
+  @Prop({ unique: true, lowercase: true })
+  email: string;
+
+  @Prop({ default: true })
+  activo: boolean;
 }
-```
 
-- Luego se genera el esquema con:
-
-```ts
+// Genera el esquema Mongoose a partir de la clase
 export const UsuarioSchema = SchemaFactory.createForClass(Usuario);
 ```
 
+**¿Por qué usar UsuarioDocument?**
+- `Usuario`: solo la clase con las propiedades del esquema
+- `UsuarioDocument`: incluye métodos de Mongoose (`.save()`, `.populate()`, `.remove()`) y propiedades como `_id`, `createdAt`, `updatedAt`
+
+**Opciones comunes de @Prop():**
+- `required: true`: campo obligatorio
+- `unique: true`: valor único en la colección
+- `default: valor`: valor por defecto
+- `trim: true`: elimina espacios en blanco
+- `lowercase: true`: convierte a minúsculas
+- `enum: [...]`: valores permitidos
+- `min/max`: validación numérica
+
+
+<br>
 
 ### 📍 Registro del Esquema en el Módulo
 
@@ -335,6 +456,7 @@ export const UsuarioSchema = SchemaFactory.createForClass(Usuario);
 - Siguiendo el ejemplo se debe configurar en usuarios.module.ts:
 
 ```typescript
+// usuarios.module.ts
 import { Module } from '@nestjs/common';
 import { UsuariosService } from './usuarios.service';
 import { UsuariosController } from './usuarios.controller';
@@ -360,15 +482,88 @@ export class UsuariosModule {}
   * Propiedades como _id, createdAt, updatedAt.
   * Tipado completo del documento que devuelve la base de datos.
 
+### 📍 Uso del Modelo en el Servicio
+
+```ts
+// usuarios.service.ts
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { Usuario, UsuarioDocument } from './entities/usuario.entity';
+import { CreateUsuarioDto } from './dto/create-usuario.dto';
+import { UpdateUsuarioDto } from './dto/update-usuario.dto';
+
+@Injectable()
+export class UsuariosService {
+  constructor(
+    @InjectModel(Usuario.name) private usuarioModel: Model<UsuarioDocument>,
+  ) {}
+
+  async create(createUsuarioDto: CreateUsuarioDto): Promise<Usuario> {
+    const nuevoUsuario = new this.usuarioModel(createUsuarioDto);
+    return nuevoUsuario.save();
+  }
+
+  async findAll(): Promise<Usuario[]> {
+    return this.usuarioModel.find().exec();
+  }
+
+  async findOne(id: string): Promise<Usuario> {
+    const usuario = await this.usuarioModel.findById(id).exec();
+    if (!usuario) {
+      throw new NotFoundException(`Usuario con ID ${id} no encontrado`);
+    }
+    return usuario;
+  }
+
+  async update(id: string, updateUsuarioDto: UpdateUsuarioDto): Promise<Usuario> {
+    const usuarioActualizado = await this.usuarioModel
+      .findByIdAndUpdate(id, updateUsuarioDto, { new: true })
+      .exec();
+    
+    if (!usuarioActualizado) {
+      throw new NotFoundException(`Usuario con ID ${id} no encontrado`);
+    }
+    return usuarioActualizado;
+  }
+
+  async remove(id: string): Promise<Usuario> {
+    const usuarioEliminado = await this.usuarioModel.findByIdAndDelete(id).exec();
+    if (!usuarioEliminado) {
+      throw new NotFoundException(`Usuario con ID ${id} no encontrado`);
+    }
+    return usuarioEliminado;
+  }
+}
+```
+
+**Métodos comunes del modelo:**
+- `.save()`: guarda el documento
+- `.find()`: busca todos los documentos
+- `.findById(id)`: busca por _id
+- `.findOne(filtro)`: busca un documento
+- `.findByIdAndUpdate(id, datos, opciones)`: actualiza y retorna el documento
+- `.findByIdAndDelete(id)`: elimina y retorna el documento
+- `.exec()`: ejecuta la consulta y devuelve una promesa
+
+**Diferencia clave:**
+- `Usuario`: clase TypeScript con las propiedades del esquema
+- `UsuarioDocument`: tipo completo que incluye `_id`, métodos de Mongoose, timestamps, etc.
+
 <br>
 
 ## 💥 Manejo de Errores y Excepciones.
 
 ### 📍 Filtros de Excepciones (Exception Filters)
 
-- comando de creación: nest g f filters/httpExeption
+[Documentacion](https://docs.nestjs.com/exception-filters)
+
+Los filtros de excepciones permiten personalizar cómo se manejan y formatean los errores en tu aplicación.
+
+- Comando de creación: `nest g f filters/httpException`
 
 ```typescript
+// http-exception.filter.ts
 import { ArgumentsHost, Catch, ExceptionFilter, HttpException } from '@nestjs/common';
 import { Request, Response } from 'express';
 
@@ -394,7 +589,7 @@ export class HttpExeptionFilter implements ExceptionFilter {
 
 ### 🎯 Aplicación del Filtro (@UseFilters())
 
-- Luego uso este filtro con el decorador `@UseFilters`.
+- Luego uso este filtro con el decorador `@UseFilters()`.
 - La aplicación puede ser a tres niveles, siendo la global la más común para manejar errores uniformemente.
 
 1. A nivel metodo o clase
@@ -414,7 +609,6 @@ export class UsuariosController { /* ... */ }
 
 ```typescript
 // main.ts
-
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 
 async function bootstrap() {
@@ -455,12 +649,10 @@ JWT (JSON Web Tokens) es una llave de acceso segura y compacta que el servidor g
 
 <p>El proceso asegura que el <strong>Frontend</strong> recuerde la sesión sin guardar la contraseña, usando el token como credencial temporal.</p>
 
-<ol>
-  <li>Login: El cliente envía credenciales a la ruta /auth/login.</li>
-  <li>Generación: El servidor valida el usuario, crea el JWT (firmado con la Clave Secreta), y lo devuelve al cliente.</li>
-  <li>Persistencia (Frontend): El Frontend guarda el JWT (en localStorage o cookies).</li>
-  <li>Acceso a Recursos: Para cada solicitud a rutas protegidas (/productos, /usuarios), el Frontend adjunta el JWT en el Header Authorization: Bearer &lt;token&gt;.</li>
-</ol>
+1. **Login**: El cliente envía credenciales a la ruta `/auth/login`.
+2. **Generación**: El servidor valida el usuario, crea el JWT (firmado con la Clave Secreta), y lo devuelve al cliente.
+3. **Persistencia (Frontend)**: El Frontend guarda el JWT (en localStorage o cookies).
+4. **Acceso a Recursos**: Para cada solicitud a rutas protegidas (`/productos`, `/usuarios`), el Frontend adjunta el JWT en el Header `Authorization: Bearer <token>`.
 
 <br>
 
@@ -485,7 +677,7 @@ Función: Este paquete (jsonwebtoken) es la herramienta esencial que usaremos en
 
 2. **Generación del Token**: La generación del token ocurre en el Servicio de Autenticación (`AuthService`) después de validar al usuario.
   
-  -   Utilizamos la función sign() para crear el token, inyectando el Payload, la Clave Secreta (JWT_SECRET) y el Tiempo de Expiración (expiresIn).
+  -   Utilizamos la función `sign()` para crear el token, inyectando el Payload, la Clave Secreta (JWT_SECRET) y el Tiempo de Expiración (expiresIn).
 
 ```typescript
 // Fragmento clave del servicio:
@@ -516,6 +708,12 @@ getProfile(@Request() req) {
 }
 ```
 
+**Ventaja de usar jsonwebtoken directamente:**
+- ✅ Implementación agnóstica del framework
+- ✅ Puedes usar el mismo código en Express, Fastify, etc.
+- ✅ Control total sobre la lógica de JWT
+- ✅ Fácil de entender y personalizar
+
 <br>
 
 ### 📍 Cookies
@@ -527,4 +725,40 @@ getProfile(@Request() req) {
 ```bash
 npm i cookie-parser
 npm i -D @types/cookie-parser
+```
+
+- Configurar en `main.ts`:
+
+```typescript
+import * as cookieParser from 'cookie-parser';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+  app.use(cookieParser());
+  await app.listen(3000);
+}
+```
+
+- Uso en controladores:
+
+```typescript
+@Post('login')
+login(@Res({ passthrough: true }) res: Response) {
+  const token = this.authService.createToken('username');
+  
+  // Guardar token en cookie httpOnly
+  res.cookie('jwt', token.token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: 15 * 60 * 1000, // 15 minutos
+  });
+  
+  return { message: 'Login exitoso' };
+}
+
+@Get('perfil')
+getProfile(@Req() req: Request) {
+  const token = req.cookies['jwt'];
+  // Verificar token...
+}
 ```
